@@ -50,6 +50,34 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #loginBtn:active{background:rgba(79,216,255,.25)}
 #loginBtn:disabled{opacity:.4}
 #loginMsg{max-width:420px;text-align:center;font-size:12px;line-height:1.6;color:var(--dim)}
+/* ---- 조작 버튼, 키보드 입력, 설정 패널, 알림 토스트 ---- */
+.ctl{position:fixed;z-index:8;bottom:calc(22px + env(safe-area-inset-bottom));width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:rgba(79,216,255,.06);border:1px solid rgba(79,216,255,.35);color:var(--bright);border-radius:50%;font-size:16px;cursor:pointer;touch-action:manipulation;text-shadow:0 0 8px rgba(79,216,255,.6)}
+.ctl:active{background:rgba(79,216,255,.22)}
+.ctl[hidden]{display:none}
+#kbBtn{left:30px}#setBtn{right:30px}
+#kbForm{position:fixed;z-index:9;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));width:min(92vw,560px);display:flex;gap:8px}
+#kbForm[hidden]{display:none}
+#kbInput{flex:1;min-width:0;background:rgba(2,6,13,.85);border:1px solid rgba(79,216,255,.5);color:var(--bright);padding:12px 14px;font-size:16px;border-radius:2px;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation;font-family:inherit}
+#kbInput:focus{box-shadow:0 0 14px rgba(79,216,255,.3)}
+.pbtn{background:rgba(79,216,255,.1);color:var(--bright);border:1px solid rgba(79,216,255,.55);padding:10px 14px;font-size:13px;letter-spacing:.08em;border-radius:2px;cursor:pointer;touch-action:manipulation;font-family:inherit}
+.pbtn:active{background:rgba(79,216,255,.25)}
+.pbtn.warn{border-color:rgba(255,140,120,.6)}
+body.kb .hint,body.kb .status{opacity:0}
+#panel{position:fixed;z-index:15;top:calc(16px + env(safe-area-inset-top));right:16px;bottom:calc(16px + env(safe-area-inset-bottom));width:min(340px,calc(100vw - 32px));overflow-y:auto;background:rgba(3,12,22,.94);border:1px solid rgba(79,216,255,.4);box-shadow:0 0 30px rgba(79,216,255,.12);padding:20px 18px;touch-action:pan-y;-webkit-user-select:text;user-select:text}
+#panel[hidden]{display:none}
+#panel h2{margin:0 0 16px;font-size:13px;letter-spacing:.32em;font-weight:600;color:var(--bright)}
+#panel h3{margin:18px 0 8px;font-size:11px;letter-spacing:.2em;font-weight:500;color:var(--dim)}
+#panel label{display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.5}
+#panel select,#panel input[type=range]{width:100%;font-family:inherit}
+#panel select{background:#04101c;color:var(--bright);border:1px solid rgba(79,216,255,.4);padding:8px;font-size:13px;border-radius:2px}
+#panel input[type=range]{accent-color:var(--c)}
+#panel input[type=checkbox]{accent-color:var(--c);width:18px;height:18px;flex:none}
+#panel p{margin:6px 0 0;font-size:11px;line-height:1.6;color:var(--dim)}
+#panel .row{display:flex;flex-wrap:wrap;gap:8px}
+#panelClose{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;padding:4px 8px}
+#toast{position:fixed;z-index:16;left:50%;top:calc(18% + env(safe-area-inset-top));transform:translateX(-50%);max-width:min(88vw,460px);padding:10px 16px;background:rgba(3,12,22,.92);border:1px solid rgba(79,216,255,.45);font-size:13px;line-height:1.5;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.on{opacity:1}
+@media(max-width:600px){#kbBtn{left:22px}#setBtn{right:22px}}
 </style>
 </head>
 <body>
@@ -63,6 +91,30 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div class="hud caption" id="caption"></div>
 <div class="hud hint" id="hint"></div>
 <div id="login"><button id="loginBtn" type="button">Google로 로그인</button><div id="loginMsg"></div></div>
+<button class="ctl" id="kbBtn" type="button" aria-label="글자로 입력" hidden><svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x=".7" y=".7" width="18.6" height="12.6" rx="1.5"/><path d="M4 4.5h1M7.5 4.5h1M11 4.5h1M14.5 4.5h1M4 7.5h1M7.5 7.5h1M11 7.5h1M14.5 7.5h1M6 10.3h8"/></svg></button>
+<button class="ctl" id="setBtn" type="button" aria-label="설정" hidden>⚙</button>
+<form id="kbForm" hidden autocomplete="off"><input id="kbInput" type="text" maxlength="1500" placeholder="이지스에게 글로 말하기" enterkeyhint="send"><button class="pbtn" type="submit">보내기</button></form>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="panel" hidden role="dialog" aria-label="설정">
+  <button id="panelClose" type="button" aria-label="닫기">×</button>
+  <h2>설정</h2>
+  <h3>목소리</h3>
+  <select id="voiceSel" aria-label="목소리"></select>
+  <h3>말하기 속도 <span id="rateVal"></span></h3>
+  <input id="rateIn" type="range" min="0.7" max="1.4" step="0.05" aria-label="말하기 속도">
+  <div class="row" style="margin-top:10px"><button class="pbtn" id="voiceTest" type="button">목소리 듣기</button></div>
+  <h3>호출어 (베타)</h3>
+  <label><input type="checkbox" id="wakeIn"> "이지스"라고 부르면 깨어나기</label>
+  <p>켜 두면 앱이 열려 있는 동안 계속 듣습니다. 음성은 브라우저 회사의 인식 서버로 전송될 수 있습니다. 컴퓨터의 Chrome에서 가장 잘 됩니다. 휴대폰에서는 잘 안 될 수 있습니다.</p>
+  <h3>알림</h3>
+  <div class="row"><button class="pbtn" id="notifBtn" type="button">알림 허용</button></div>
+  <p id="notifMsg">타이머와 일정을 앱이 뒤에 있을 때도 알려 줍니다. (앱이 완전히 닫히면 울리지 않습니다)</p>
+  <h3>내 데이터</h3>
+  <div class="row"><button class="pbtn" id="exportBtn" type="button">내려받기</button><button class="pbtn" id="reauthBtn" type="button">본인 확인 (다시 로그인)</button></div>
+  <p>내려받기와 "전부 삭제" 같은 중요한 작업은 로그인한 지 10분 안에만 됩니다. 시간이 지났으면 본인 확인을 먼저 눌러 주세요.</p>
+  <h3>계정</h3>
+  <div class="row"><button class="pbtn warn" id="logoutBtn" type="button">로그아웃</button></div>
+</div>
 
 <script>
 (()=>{
@@ -413,6 +465,7 @@ window.Aegis={
   getState(){return state;},
   setLevel(v){ext=(v==null)?null:Math.max(0,Math.min(1,v));},
   setMaster(on){
+    if(master===!!on)return; // 상태가 바뀔 때만 인사말을 다시 타이핑한다
     master=!!on;
     document.getElementById('sub').textContent=master?'Master Mode':'Personal AI Assistant';
     if(master){GREETING='어서 오십시오, 주인님. 모든 기능이 활성화되었습니다.';greetT0=bootT;}
@@ -429,7 +482,7 @@ requestAnimationFrame(frame);
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import {
-  getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, GoogleAuthProvider,
+  getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, GoogleAuthProvider, reauthenticateWithPopup,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 
 // ▼▼▼ Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 복사해 채운다. (공개되어도 안전한 값들이다) ▼▼▼
@@ -453,13 +506,41 @@ const hintEl = $('hint');
 
 const configured = !String(firebaseConfig.apiKey).startsWith('YOUR_');
 
-// ---------- 자막 ----------
+// ---------- 이 기기에만 저장하는 값 (목소리, 속도, 호출어, 타이머 등) ----------
+// 저장이 막힌 브라우저(사생활 보호 모드 등)에서도 앱은 그대로 동작한다.
+function load(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+}
+function forget(key) {
+  try { localStorage.removeItem(key); } catch (_) {}
+}
+const settings = Object.assign({ voice: '', rate: 1, wake: false }, load('aegis.settings', {}));
+const saveSettings = () => save('aegis.settings', settings);
+const todayStr = () => new Date().toLocaleDateString('en-CA');
+
+// ---------- 자막, 토스트 ----------
 let capTimer = null;
 function caption(text, hold) {
   clearTimeout(capTimer);
   capEl.textContent = text || '';
   capEl.classList.toggle('on', !!text);
   if (text && hold) capTimer = setTimeout(() => capEl.classList.remove('on'), hold);
+}
+let toastTimer = null;
+function toast(text, hold = 4000) {
+  const el = $('toast');
+  clearTimeout(toastTimer);
+  el.textContent = text;
+  el.classList.add('on');
+  toastTimer = setTimeout(() => el.classList.remove('on'), hold);
 }
 
 // ---------- 목소리 레벨(파형) 연출 ----------
@@ -480,22 +561,33 @@ let mode = 'idle'; // idle | listening | thinking | speaking
 let rec = null;
 let speakId = 0;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const pendingSpeech = [];
 
 function toIdle() {
   stopLevel();
   mode = 'idle';
   A.setState('idle');
   if (pendingSpeech.length) speak(pendingSpeech.shift());
+  else scheduleWake();
 }
 
 // ---------- 말하기(TTS) ----------
-// v0.1은 브라우저 내장 음성을 쓴다. 더 자연스러운 음성 서비스로 바꿀 때는 이 함수만 교체하면 된다.
+// 브라우저 내장 음성을 쓴다. 더 자연스러운 음성 서비스로 바꿀 때는 이 부분만 교체하면 된다.
+function koVoices() {
+  return 'speechSynthesis' in window ? speechSynthesis.getVoices().filter((v) => /^ko/i.test(v.lang)) : [];
+}
 function pickVoice() {
-  const vs = speechSynthesis.getVoices().filter((v) => /^ko/i.test(v.lang));
-  return vs.find((v) => /male|남성|injoon|minsu|hyunsu/i.test(v.name)) || vs[0] || null;
+  const vs = koVoices();
+  return (
+    (settings.voice && vs.find((v) => v.name === settings.voice)) ||
+    vs.find((v) => /male|남성|injoon|minsu|hyunsu/i.test(v.name)) ||
+    vs[0] ||
+    null
+  );
 }
 
 function speak(text) {
+  stopWake();
   caption(text);
   if (!('speechSynthesis' in window)) {
     mode = 'speaking';
@@ -506,6 +598,7 @@ function speak(text) {
   }
   const myId = ++speakId;
   speechSynthesis.cancel();
+  // 문장 단위로 끊어 읽는다. (긴 글을 한 번에 넘기면 일부 브라우저가 중간에 멈춘다)
   const parts = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
   mode = 'speaking';
   A.setState('speaking');
@@ -524,7 +617,7 @@ function speak(text) {
     u.lang = 'ko-KR';
     const v = pickVoice();
     if (v) u.voice = v;
-    u.rate = 1.0;
+    u.rate = settings.rate;
     u.pitch = 0.85;
     u.onend = next;
     u.onerror = next;
@@ -532,6 +625,101 @@ function speak(text) {
   };
   next();
 }
+
+// 모바일 브라우저는 사용자가 탭한 순간에만 소리 재생을 허용한다. 탭할 때마다 한 번 열어 둔다.
+function unlockAudio() {
+  try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (_) {}
+}
+
+// ---------- 알림 (앱이 뒤에 있을 때) ----------
+let swReg = null;
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then((r) => { swReg = r; }).catch(() => {});
+}
+function notify(body) {
+  if (!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    if (swReg) swReg.showNotification('이지스', { body, icon: 'icon.svg', tag: 'aegis-' + Date.now() });
+    else new Notification('이지스', { body, icon: 'icon.svg' });
+  } catch (_) {}
+}
+// 말로 알려 주고, 앱이 뒤에 있으면 알림도 띄운다. 다른 말을 하는 중이면 끝난 뒤에 말한다.
+function announce(msg) {
+  notify(msg);
+  if (mode === 'idle') speak(msg);
+  else pendingSpeech.push(msg);
+}
+
+// ---------- 타이머 (새로고침해도 유지) ----------
+let timers = load('aegis.timers', []).filter((t) => t && t.at > Date.now() - 60000);
+const timerHandles = new Map();
+function scheduleTimer(t) {
+  timerHandles.set(t.id, setTimeout(() => {
+    timerHandles.delete(t.id);
+    timers = timers.filter((x) => x.id !== t.id);
+    save('aegis.timers', timers);
+    announce((t.label ? t.label + ' ' : '') + '타이머가 끝났습니다, 주인님.');
+  }, Math.max(0, t.at - Date.now())));
+}
+function addTimer(seconds, label) {
+  const t = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: Date.now() + seconds * 1000, label };
+  timers.push(t);
+  save('aegis.timers', timers);
+  scheduleTimer(t);
+}
+function clearTimers() {
+  for (const h of timerHandles.values()) clearTimeout(h);
+  timerHandles.clear();
+  timers = [];
+  forget('aegis.timers');
+}
+
+// ---------- 일정 알림 ----------
+// 서버에서 앞으로 하루 안의 알림만 받아 와서 예약한다. 10분마다, 그리고 앱으로 돌아올 때 새로 받는다.
+let fired = load('aegis.fired', {}); // "일정id:알림시각" -> 울린 시각 (같은 알림을 두 번 울리지 않게)
+const remHandles = new Map();
+function clearReminders() {
+  for (const h of remHandles.values()) clearTimeout(h);
+  remHandles.clear();
+}
+function reminderText(e) {
+  const min = Math.round((e.at - Date.now()) / 60000);
+  if (min <= 1) return `지금 ${e.title} 일정입니다, 주인님.`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const when = h ? `${h}시간${m ? ' ' + m + '분' : ''}` : `${m}분`;
+  return `${when} 뒤에 ${e.title} 일정이 있습니다, 주인님.`;
+}
+async function refreshReminders() {
+  if (!user) return;
+  try {
+    const res = await authedFetch('/api/upcoming');
+    if (!res.ok) return;
+    const { events = [] } = await res.json();
+    clearReminders();
+    const now = Date.now();
+    for (const k of Object.keys(fired)) if (fired[k] < now - 2 * 86400000) delete fired[k];
+    for (const e of events.slice(0, 100)) {
+      if (!e || typeof e.remindAt !== 'number' || typeof e.at !== 'number') continue;
+      const key = e.id + ':' + e.remindAt;
+      if (fired[key] || e.remindAt < now - 10 * 60000) continue; // 10분 넘게 지난 알림은 생략
+      remHandles.set(key, setTimeout(() => {
+        fired[key] = Date.now();
+        save('aegis.fired', fired);
+        announce(reminderText({ ...e, title: String(e.title || '').slice(0, 100) }));
+      }, Math.max(0, e.remindAt - now)));
+    }
+    save('aegis.fired', fired);
+  } catch (_) { /* 오프라인이면 다음에 */ }
+}
+setInterval(refreshReminders, 10 * 60000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopWake();
+  else {
+    refreshReminders();
+    scheduleWake();
+  }
+});
 
 // ---------- 서버 대화 ----------
 let appCheck = null;
@@ -544,24 +732,50 @@ async function authedFetch(path, opts = {}) {
   return fetch(path, { ...opts, headers });
 }
 
-// ---------- 서버가 시킨 화면 동작 (타이머, 로그아웃) ----------
-const pendingSpeech = [];
+// ---------- 내 데이터 내려받기 ----------
+async function doExport() {
+  if (!user) return;
+  try {
+    const res = await authedFetch('/api/export');
+    if (res.status === 403) {
+      toast('보안을 위해 설정에서 "본인 확인"을 누른 뒤 다시 시도해 주세요.', 7000);
+      return;
+    }
+    if (!res.ok) throw new Error(String(res.status));
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aegis-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast('내 데이터 파일을 내려받았습니다. 대화 내용이 그대로 들어 있으니 안전하게 보관하세요.', 7000);
+  } catch (_) {
+    toast('내려받기에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// ---------- 서버가 시킨 화면 동작 ----------
 function runActions(actions) {
   if (!Array.isArray(actions)) return;
   for (const a of actions.slice(0, 5)) {
-    if (a && a.type === 'timer' && Number.isFinite(a.seconds)) {
-      const label = String(a.label || '').slice(0, 40);
-      setTimeout(() => {
-        const msg = (label ? label + ' ' : '') + '타이머가 끝났습니다, 주인님.';
-        if (mode === 'idle') speak(msg); else pendingSpeech.push(msg);
-      }, Math.min(a.seconds, 86400) * 1000);
-    } else if (a && a.type === 'signout') {
+    if (!a) continue;
+    if (a.type === 'timer' && Number.isFinite(a.seconds) && a.seconds > 0) {
+      addTimer(Math.min(a.seconds, 86400), String(a.label || '').slice(0, 40));
+    } else if (a.type === 'reminders') {
+      refreshReminders();
+    } else if (a.type === 'export') {
+      doExport();
+    } else if (a.type === 'signout') {
       signOut(getAuth());
     }
   }
 }
 
 async function send(text) {
+  stopWake();
   mode = 'thinking';
   A.setState('thinking');
   caption('');
@@ -575,13 +789,17 @@ async function send(text) {
     data = await res.json().catch(() => ({}));
     if (res.status === 401) {
       await signOut(getAuth());
+      toIdle();
       return;
     }
     if (!data.reply) data = { reply: '연결에 문제가 있습니다, 주인님. 잠시 후 다시 말씀해 주세요.' };
   } catch (_) {
     data = { reply: '네트워크 연결을 확인해 주세요, 주인님.' };
   }
-  if (typeof data.master === 'boolean') A.setMaster(data.master);
+  if (typeof data.master === 'boolean') {
+    A.setMaster(data.master);
+    updateHint();
+  }
   speak(data.reply);
   runActions(data.actions);
 }
@@ -589,11 +807,14 @@ async function send(text) {
 // ---------- 듣기(음성 인식) ----------
 function listen() {
   if (!SR) {
-    caption('이 브라우저는 음성 입력을 지원하지 않습니다. 안드로이드는 Chrome, 아이폰은 Safari를 써 주세요.', 8000);
+    caption('이 브라우저는 음성 입력을 지원하지 않습니다. 왼쪽 아래 키보드 버튼으로 글로 말씀해 주세요.', 8000);
     return;
   }
-  // 모바일 브라우저는 사용자가 탭한 순간에만 소리 재생을 허용한다. 지금 한 번 열어 둔다.
-  try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (_) {}
+  // 호출어 듣기가 켜져 있으면 먼저 끄고, 완전히 꺼진 뒤에 시작한다. (마이크는 한 번에 하나만)
+  if (wakeRec) {
+    stopWake(listen);
+    return;
+  }
 
   rec = new SR();
   rec.lang = 'ko-KR';
@@ -621,7 +842,7 @@ function listen() {
   rec.onerror = (e) => {
     failed = true;
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      caption('마이크 권한이 필요합니다. 브라우저 설정에서 허용해 주세요.', 8000);
+      caption('마이크 권한이 필요합니다. 브라우저 설정에서 허용하거나, 키보드 버튼으로 글로 말씀해 주세요.', 8000);
     } else if (e.error === 'no-speech') {
       caption('말씀이 들리지 않았습니다.', 3000);
     } else if (e.error !== 'aborted') {
@@ -629,35 +850,243 @@ function listen() {
     }
   };
   rec.onend = () => {
+    rec = null;
     stopLevel();
     const t = finalText.trim();
     if (t) send(t);
     else {
-      mode = 'idle';
-      A.setState('idle');
       if (!failed) caption('');
+      toIdle();
     }
   };
-  try { rec.start(); } catch (_) { toIdle(); }
+  try { rec.start(); } catch (_) { rec = null; toIdle(); }
+}
+
+// ---------- 호출어 "이지스" (설정에서 켰을 때만) ----------
+// 앱이 열려 있고 쉬는 동안 계속 들으며 "이지스"가 들리면 깨어난다. "이지스, 내일 날씨 어때"처럼
+// 한 번에 말하면 바로 처리하고, "이지스"만 말하면 듣기 상태로 넘어간다.
+const WAKE = /(이지스|에이지스|aegis)/i;
+let wakeRec = null;
+let wakeThen = null;
+let wakeTimer = null;
+let wakeBackoff = 400;
+function wakeAllowed() {
+  return settings.wake && user && SR && !document.hidden && mode === 'idle' && !rec;
+}
+function scheduleWake(delay = 400) {
+  clearTimeout(wakeTimer);
+  wakeTimer = setTimeout(startWake, delay);
+}
+function startWake() {
+  if (wakeRec || !wakeAllowed()) return;
+  const r = new SR();
+  r.lang = 'ko-KR';
+  r.continuous = true;
+  r.interimResults = true;
+  let hit = null; // 호출어 뒤에 이어서 한 말 ('' = 호출어만)
+  let woke = false;
+  const startedAt = Date.now();
+  r.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      const tx = res[0].transcript;
+      const m = WAKE.exec(tx);
+      if (!m) continue;
+      woke = true;
+      if (!res.isFinal) continue;
+      const rest = tx.slice(m.index + m[0].length).replace(/^[\s,.!?~야아]+/, '').trim();
+      hit = rest.length >= 2 ? rest : '';
+      try { r.stop(); } catch (_) {}
+      return;
+    }
+  };
+  r.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      settings.wake = false;
+      saveSettings();
+      $('wakeIn').checked = false;
+      toast('마이크 권한이 없어 호출어 듣기를 껐습니다.');
+    }
+  };
+  r.onend = () => {
+    wakeRec = null;
+    if (wakeThen) {
+      const f = wakeThen;
+      wakeThen = null;
+      f();
+      return;
+    }
+    if (r.stoppedByApp) return; // 말하기/생각하기 때문에 끈 것: 대기 상태로 돌아오면 다시 켠다
+    if (hit) return send(hit);
+    if (hit === '' || woke) {
+      unlockAudio();
+      return listen();
+    }
+    // 브라우저가 스스로 끊은 경우 다시 시작한다. 바로바로 끊기면 점점 천천히 재시도한다.
+    wakeBackoff = Date.now() - startedAt < 1500 ? Math.min(15000, wakeBackoff * 2) : 400;
+    scheduleWake(wakeBackoff);
+  };
+  wakeRec = r;
+  try { r.start(); } catch (_) { wakeRec = null; scheduleWake(5000); }
+}
+function stopWake(then) {
+  clearTimeout(wakeTimer);
+  if (!wakeRec) {
+    if (then) then();
+    return;
+  }
+  wakeThen = then || null;
+  wakeRec.stoppedByApp = true;
+  wakeBackoff = 400;
+  try { wakeRec.abort(); } catch (_) {
+    wakeRec = null;
+    if (then) then();
+  }
+}
+
+// ---------- 아침 브리핑 (마스터, 하루 한 번, 오전 5~11시) ----------
+function briefingDue() {
+  const h = new Date().getHours();
+  return A.isMaster() && h >= 5 && h < 11 && load('aegis.brief', '') !== todayStr();
+}
+function updateHint() {
+  if (!user) hintEl.textContent = '';
+  else if (briefingDue()) hintEl.textContent = '탭하면 오늘 아침 브리핑을 들려 드립니다';
+  else hintEl.textContent = settings.wake && SR ? '"이지스"라고 부르거나 화면을 탭하세요' : '화면을 탭하고 말씀하세요';
 }
 
 // 화면 아무 곳이나 탭: 말하는 중이면 끊고 바로 듣기, 듣는 중이면 마치기
 A.onTap = () => {
   if (!user) return;
+  if (!panel.hidden) return closePanel();
+  unlockAudio();
   if (mode === 'speaking') {
     speakId++;
+    pendingSpeech.length = 0;
     try { speechSynthesis.cancel(); } catch (_) {}
     stopLevel();
     listen();
     return;
   }
   if (mode === 'listening') {
-    try { rec.stop(); } catch (_) {}
+    try { rec && rec.stop(); } catch (_) {}
     return;
   }
   if (mode === 'thinking') return;
+  if (briefingDue()) {
+    save('aegis.brief', todayStr());
+    updateHint();
+    send('아침 브리핑 해 줘');
+    return;
+  }
   listen();
 };
+
+// ---------- 글로 입력 ----------
+const kbForm = $('kbForm');
+const kbInput = $('kbInput');
+$('kbBtn').onclick = () => {
+  const open = kbForm.hidden;
+  kbForm.hidden = !open;
+  document.body.classList.toggle('kb', open);
+  if (open) kbInput.focus();
+};
+kbForm.onsubmit = (e) => {
+  e.preventDefault();
+  const t = kbInput.value.trim();
+  if (!t || !user || mode === 'thinking') return;
+  unlockAudio();
+  if (mode === 'speaking') {
+    speakId++;
+    try { speechSynthesis.cancel(); } catch (_) {}
+  }
+  if (rec) {
+    // 듣던 것은 버리고 글로 보낸다. (끝날 때 대기 상태로 되돌리지 않도록 처리기를 바꿔 둔다)
+    const r = rec;
+    r.onerror = null;
+    r.onend = () => { if (rec === r) rec = null; };
+    rec = null;
+    stopLevel();
+    try { r.abort(); } catch (_) {}
+  }
+  kbInput.value = '';
+  send(t);
+};
+
+// ---------- 설정 패널 ----------
+const panel = $('panel');
+const voiceSel = $('voiceSel');
+function closePanel() { panel.hidden = true; }
+function fillVoices() {
+  const vs = koVoices();
+  voiceSel.textContent = '';
+  const def = document.createElement('option');
+  def.value = '';
+  def.textContent = vs.length ? '자동 선택' : '한국어 음성이 없습니다';
+  voiceSel.appendChild(def);
+  for (const v of vs) {
+    const o = document.createElement('option');
+    o.value = v.name;
+    o.textContent = v.name;
+    voiceSel.appendChild(o);
+  }
+  voiceSel.value = vs.some((v) => v.name === settings.voice) ? settings.voice : '';
+}
+if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', fillVoices);
+function notifState() {
+  const btn = $('notifBtn');
+  if (!('Notification' in window)) {
+    btn.disabled = true;
+    btn.textContent = '이 브라우저는 알림 미지원';
+  } else if (Notification.permission === 'granted') {
+    btn.disabled = true;
+    btn.textContent = '알림 켜짐';
+  } else if (Notification.permission === 'denied') {
+    btn.disabled = true;
+    btn.textContent = '알림 차단됨 (브라우저 설정에서 허용)';
+  }
+}
+$('setBtn').onclick = () => {
+  if (!panel.hidden) return closePanel();
+  fillVoices();
+  $('rateIn').value = settings.rate;
+  $('rateVal').textContent = settings.rate.toFixed(2) + '배';
+  $('wakeIn').checked = settings.wake;
+  $('wakeIn').disabled = !SR;
+  notifState();
+  panel.hidden = false;
+};
+$('panelClose').onclick = closePanel;
+voiceSel.onchange = () => { settings.voice = voiceSel.value; saveSettings(); };
+$('rateIn').oninput = (e) => {
+  settings.rate = Math.min(1.4, Math.max(0.7, Number(e.target.value) || 1));
+  $('rateVal').textContent = settings.rate.toFixed(2) + '배';
+  saveSettings();
+};
+$('voiceTest').onclick = () => { unlockAudio(); if (mode === 'idle' || mode === 'speaking') speak('안녕하세요, 주인님. 이지스입니다.'); };
+$('wakeIn').onchange = (e) => {
+  settings.wake = e.target.checked;
+  saveSettings();
+  unlockAudio();
+  updateHint();
+  if (settings.wake) scheduleWake(100);
+  else stopWake();
+};
+$('notifBtn').onclick = async () => {
+  try { await Notification.requestPermission(); } catch (_) {}
+  notifState();
+};
+$('exportBtn').onclick = doExport;
+$('reauthBtn').onclick = async () => {
+  if (!user) return;
+  try {
+    await reauthenticateWithPopup(user, new GoogleAuthProvider());
+    toast('본인 확인이 끝났습니다. 10분 안에 중요한 작업을 하실 수 있습니다.', 6000);
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user') toast('본인 확인에 실패했습니다. 다시 시도해 주세요.');
+  }
+};
+$('logoutBtn').onclick = () => { closePanel(); signOut(getAuth()); };
 
 // ---------- 로그인 ----------
 if (!configured) {
@@ -687,18 +1116,33 @@ if (!configured) {
   onAuthStateChanged(auth, async (u) => {
     user = u;
     loginEl.hidden = !!u;
-    hintEl.textContent = u ? '화면을 탭하고 말씀하세요' : '';
+    $('kbBtn').hidden = !u;
+    $('setBtn').hidden = !u;
     if (!u) {
+      // 공용 기기에서 다음 사람에게 남지 않도록 이 기기에 둔 알림 예약을 지운다.
+      stopWake();
+      closePanel();
+      kbForm.hidden = true;
+      document.body.classList.remove('kb');
+      clearTimers();
+      clearReminders();
+      fired = {};
+      forget('aegis.fired');
       A.setMaster(false);
+      updateHint();
       return;
     }
+    for (const t of timers) scheduleTimer(t);
+    updateHint();
     try {
       const res = await authedFetch('/api/me');
       if (res.ok) A.setMaster((await res.json()).master === true);
     } catch (_) { /* 오프라인이면 무시 */ }
+    updateHint();
+    refreshReminders();
+    scheduleWake(1500);
   });
 }
-
 </script>
 </body>
 </html>

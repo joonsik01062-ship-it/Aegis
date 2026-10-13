@@ -15,14 +15,18 @@ function makeFakeDb() {
     async add(d) { const id = 'a' + ++n; data.set(`${path}/${id}`, cl(d)); return { id }; },
     orderBy(f, dir) { return query(path, f, dir, 1e9); },
     limit(k) { return query(path, null, 'asc', k); },
+    where(f, op, v) { return query(path, null, 'asc', 1e9, [[f, op, v]]); },
     count: () => ({ get: async () => ({ data: () => ({ count: [...data.keys()].filter((k) => k.startsWith(path + '/') && !k.slice(path.length + 1).includes('/')).length }) }) }),
   });
-  const query = (path, f, dir, k) => ({
-    orderBy: (f2, d2) => query(path, f2, d2, k),
-    limit: (k2) => query(path, f, dir, k2),
+  const OPS = { '>=': (a, b) => a >= b, '<=': (a, b) => a <= b, '==': (a, b) => a === b };
+  const query = (path, f, dir, k, conds = []) => ({
+    orderBy: (f2, d2) => query(path, f2, d2, k, conds),
+    limit: (k2) => query(path, f, dir, k2, conds),
+    where: (f2, op, v) => query(path, f, dir, k, [...conds, [f2, op, v]]),
     async get() {
       let ids = [...data.keys()].filter((p) => p.startsWith(path + '/') && !p.slice(path.length + 1).includes('/'));
       let docs = ids.map((p) => ({ id: p.split('/').pop(), data: () => data.get(p) }));
+      docs = docs.filter((d) => conds.every(([cf, op, v]) => OPS[op](d.data()[cf], v)));
       if (f) docs.sort((a, b) => (dir === 'desc' ? -1 : 1) * ((a.data()[f] || 0) - (b.data()[f] || 0)));
       return { docs: docs.slice(0, k) };
     },

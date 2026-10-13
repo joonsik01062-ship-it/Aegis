@@ -180,6 +180,54 @@ function makeStore(db, keyring) {
       return true;
     },
 
+    async deleteTodo(uid, id) {
+      if (!id) return false;
+      const ref = userRef(uid).collection('todos').doc(id);
+      const s = await ref.get();
+      if (!s.exists) return false;
+      await ref.delete();
+      return true;
+    },
+
+    // ---- 일정(events): 제목은 암호화, 시각(at)은 정렬과 알림 예약을 위해 평문 숫자 ----
+    // 기본 등급은 일정 시각에서 보관 기간이 지나면 만료, 마스터는 영구.
+    // 반환: 문서 id 또는 'full'
+    async addEvent(uid, title, at, remindMin, tier) {
+      const col = userRef(uid).collection('events');
+      const cnt = (await col.count().get()).data().count;
+      if (cnt >= C.MAX_EVENTS) return 'full';
+      const doc = { titleEnc: await enc(uid, 'events', 'title', title), at, remindMin, createdAt: Date.now() };
+      const e = expiry(tier, Math.max(at, Date.now()));
+      if (e) doc.expireAt = e;
+      const r = await col.add(doc);
+      return r.id;
+    },
+    async listEvents(uid, fromMs, toMs, limit = 50) {
+      const snap = await userRef(uid)
+        .collection('events')
+        .where('at', '>=', fromMs)
+        .where('at', '<=', toMs)
+        .orderBy('at', 'asc')
+        .limit(limit)
+        .get();
+      const out = [];
+      for (const d of snap.docs) {
+        const x = d.data();
+        if (!alive(x)) continue;
+        const title = await dec(uid, 'events', 'title', x.titleEnc);
+        if (title !== null) out.push({ id: d.id, title, at: x.at, remindMin: x.remindMin || 0 });
+      }
+      return out;
+    },
+    async deleteEvent(uid, id) {
+      if (!id) return false;
+      const ref = userRef(uid).collection('events').doc(id);
+      const s = await ref.get();
+      if (!s.exists) return false;
+      await ref.delete();
+      return true;
+    },
+
     // ---- 설정(prefs): 사는 도시, 기상 시간 같은 고정 정보. key는 평문(영문 소문자), 값은 암호화 ----
     async getPrefs(uid) {
       const snap = await userRef(uid).collection('prefs').limit(C.MAX_PREFS + 5).get();
@@ -250,11 +298,43 @@ function makeStore(db, keyring) {
         memories: await n('memories'),
         todos: await n('todos'),
         routines: await n('routines'),
+        events: await n('events'),
         usageToday: u.exists ? u.data().count : 0,
       };
     },
 
-    // 대화, 기억, 할 일, 설정, 루틴을 전부 지운다. 사용자 문서(= 감긴 데이터 키)도 함께 지워지므로,
+    // 내 데이터 내려받기(개인정보 열람권): 이 사용자의 기록을 복호화해서 한 덩어리로 돌려준다.
+    // 서버 로그에는 남기지 않고, 응답으로만 사용자 본인에게 간다.
+    async exportAll(uid) {
+      const u = await userRef(uid).get();
+      const ux = u.exists ? u.data() : {};
+      const todosSnap = await userRef(uid).collection('todos').orderBy('createdAt', 'asc').limit(5000).get();
+      const todos = [];
+      for (const d of todosSnap.docs) {
+        const x = d.data();
+        const text = await dec(uid, 'todos', 'text', x.textEnc);
+        if (text !== null) todos.push({ text, due: x.due || null, done: !!x.done, createdAt: x.createdAt });
+      }
+      const eventsSnap = await userRef(uid).collection('events').orderBy('at', 'asc').limit(C.MAX_EVENTS + 5).get();
+      const events = [];
+      for (const d of eventsSnap.docs) {
+        const x = d.data();
+        if (!alive(x)) continue;
+        const title = await dec(uid, 'events', 'title', x.titleEnc);
+        if (title !== null) events.push({ title, at: x.at, remindMin: x.remindMin || 0 });
+      }
+      return {
+        account: { tier: ux.tier || 'basic', masterSince: ux.masterSince || null, createdAt: ux.createdAt || null },
+        messages: (await this.recentMessages(uid, C.EXPORT_MAX_MESSAGES)).map(({ role, text, ts }) => ({ role, text, ts })),
+        memories: (await this.listMemories(uid, 5000)).map(({ text, reason, createdAt }) => ({ text, reason, createdAt })),
+        todos,
+        events,
+        prefs: await this.getPrefs(uid),
+        routines: (await this.listRoutines(uid)).map(({ name, steps }) => ({ name, steps })),
+      };
+    },
+
+    // 대화, 기억, 할 일, 일정, 설정, 루틴을 전부 지운다. 사용자 문서(= 감긴 데이터 키)도 함께 지워지므로,
     // 혹시 복제본이나 백업에 암호문이 남아 있어도 키가 없어서 영원히 읽을 수 없다. (키 파기)
     // 마스터 등급은 유지하고, 새 데이터 키는 다음에 쓸 때 새로 만들어진다.
     async deleteAll(uid) {

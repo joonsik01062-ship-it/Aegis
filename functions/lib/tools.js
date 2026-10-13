@@ -4,6 +4,9 @@ const { redact } = require('./redact');
 const { rank } = require('./memory');
 const { confirmsDeleteAll, confirmsRevoke } = require('./unlock');
 const { calculate } = require('./calc');
+const { convert } = require('./convert');
+const { dateCalc, parseWhen, fmtKST: fmtFull, DAY } = require('./dates');
+const nodeCrypto = require('crypto');
 const C = require('./config');
 
 const obj = (properties = {}, required = []) => ({ type: 'object', properties, required });
@@ -82,6 +85,101 @@ const DEFINITIONS = [
     input_schema: obj({ name: { type: 'string' } }, ['name']),
   },
   {
+    name: 'delete_todo',
+    description: '할 일을 완료하지 않고 아예 지운다. id는 list_todos 결과에서 가져온다.',
+    input_schema: obj({ id: { type: 'string' } }, ['id']),
+  },
+  {
+    name: 'add_event',
+    description:
+      '일정을 추가한다. 시각은 현재 시각을 기준으로 계산해서 한국 시간 YYYY-MM-DDTHH:mm 형식으로 넣는다. 앱이 열려 있으면 알림 시간에 소리로, 백그라운드면 알림으로 알려 준다.',
+    input_schema: obj(
+      {
+        title: { type: 'string', description: '일정 내용. 예: 치과 예약' },
+        start: { type: 'string', description: '한국 시간. 예: 2026-10-15T15:00' },
+        remind_minutes: { type: 'integer', description: '몇 분 전에 알릴지. 기본 10, 0이면 정각에, 최대 10080(일주일)' },
+      },
+      ['title', 'start']
+    ),
+  },
+  {
+    name: 'list_events',
+    description: '지금부터 며칠 안의 일정을 시간순으로 가져온다. 오늘 일정, 이번 주 일정, 브리핑에 쓴다.',
+    input_schema: obj({ days: { type: 'integer', description: '1 ~ 90. 기본 7' } }),
+  },
+  {
+    name: 'delete_event',
+    description: '일정을 지운다. id는 list_events 결과에서 가져온다.',
+    input_schema: obj({ id: { type: 'string' } }, ['id']),
+  },
+  {
+    name: 'get_air_quality',
+    description: '도시의 현재 미세먼지(PM10)와 초미세먼지(PM2.5) 농도와 한국 기준 등급을 가져온다.',
+    input_schema: obj({ city: { type: 'string', description: '도시 이름. 예: 서울' } }, ['city']),
+  },
+  {
+    name: 'exchange_rate',
+    description: '환율을 가져와 금액을 바꿔 준다. 유럽중앙은행 기준 환율(영업일 하루 한 번 갱신)이라 은행 실거래가와 조금 다를 수 있다.',
+    input_schema: obj(
+      {
+        from: { type: 'string', description: '통화 코드 세 글자. 예: USD, JPY, EUR, KRW' },
+        to: { type: 'string', description: '통화 코드 세 글자' },
+        amount: { type: 'number', description: '바꿀 금액. 기본 1' },
+      },
+      ['from', 'to']
+    ),
+  },
+  {
+    name: 'convert_units',
+    description: '단위를 정확하게 바꾼다. 길이, 무게, 부피, 넓이(평 포함), 속도, 온도. 예: value=30 from=평 to=m2',
+    input_schema: obj(
+      { value: { type: 'number' }, from: { type: 'string' }, to: { type: 'string' } },
+      ['value', 'from', 'to']
+    ),
+  },
+  {
+    name: 'date_calc',
+    description:
+      '날짜 계산. op=dday(date까지 남은 날, 디데이), diff(date부터 date2까지 일수), add(date에 days일 더한 날짜와 요일, date 없으면 오늘). 날짜는 YYYY-MM-DD.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        op: { type: 'string', enum: ['dday', 'diff', 'add'] },
+        date: { type: 'string' },
+        date2: { type: 'string' },
+        days: { type: 'integer' },
+      },
+      required: ['op'],
+    },
+  },
+  {
+    name: 'random',
+    description: '공정한 무작위 뽑기. mode=coin(동전), dice(주사위, sides면), number(min~max 정수), pick(options 중 count개).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['coin', 'dice', 'number', 'pick'] },
+        sides: { type: 'integer' },
+        min: { type: 'integer' },
+        max: { type: 'integer' },
+        options: { type: 'array', items: { type: 'string' } },
+        count: { type: 'integer' },
+      },
+      required: ['mode'],
+    },
+  },
+  {
+    name: 'list_memories',
+    description: '저장된 중요 기억을 최근 것부터 보여 준다. "내 기억 보여 줘"에 쓴다.',
+    input_schema: obj({ limit: { type: 'integer', description: '1 ~ 30. 기본 10' } }),
+  },
+  {
+    name: 'export_data',
+    description:
+      '사용자의 모든 기록(대화, 기억, 할 일, 일정, 설정, 루틴)을 파일로 내려받게 한다. 사용자가 내 데이터 내려받기/백업을 요청하면 호출한다.',
+    input_schema: obj(),
+  },
+  {
     name: 'search_memory',
     description:
       '저장된 중요 기억과 지난 대화에서 찾는다. 사용자가 지난 일을 묻거나 "전에 말한 거"를 언급하면 먼저 호출한다.',
@@ -152,13 +250,17 @@ function weatherText(code) {
   return '알 수 없음';
 }
 
-async function getWeather(fetchFn, city) {
+async function geocode(fetchFn, city) {
   const g = await (
     await fetchFn(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=ko`
     )
   ).json();
-  const place = g.results && g.results[0];
+  return (g.results && g.results[0]) || null;
+}
+
+async function getWeather(fetchFn, city) {
+  const place = await geocode(fetchFn, city);
   if (!place) return { error: `'${city}' 위치를 찾지 못했습니다.` };
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}` +
@@ -180,6 +282,81 @@ async function getWeather(fetchFn, city) {
     내일: { 최고: d.temperature_2m_max?.[1], 최저: d.temperature_2m_min?.[1], 강수확률: d.precipitation_probability_max?.[1] },
   };
 }
+
+// 환경부 대기질 등급 (PM10, PM2.5 µg/m³)
+function airGrade(v, cuts) {
+  if (typeof v !== 'number') return '알 수 없음';
+  if (v <= cuts[0]) return '좋음';
+  if (v <= cuts[1]) return '보통';
+  if (v <= cuts[2]) return '나쁨';
+  return '매우 나쁨';
+}
+
+async function getAirQuality(fetchFn, city) {
+  const place = await geocode(fetchFn, city);
+  if (!place) return { error: `'${city}' 위치를 찾지 못했습니다.` };
+  const a = await (
+    await fetchFn(
+      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.latitude}&longitude=${place.longitude}` +
+        `&current=pm10,pm2_5&timezone=auto`
+    )
+  ).json();
+  const c = a.current || {};
+  return {
+    장소: `${place.name}${place.country ? ', ' + place.country : ''}`,
+    미세먼지_PM10: { 농도: c.pm10, 등급: airGrade(c.pm10, [30, 80, 150]) },
+    초미세먼지_PM2_5: { 농도: c.pm2_5, 등급: airGrade(c.pm2_5, [15, 35, 75]) },
+    단위: 'µg/m³',
+    출처: '모델 추정치(Open-Meteo). 측정소 실측과 다를 수 있다.',
+  };
+}
+
+async function getExchange(fetchFn, from, to, amount) {
+  const res = await fetchFn(`https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}`);
+  if (!res.ok) return { error: '환율 정보를 가져오지 못했습니다. 지원하지 않는 통화일 수 있습니다.' };
+  const r = await res.json();
+  const rate = r.rates && r.rates[to];
+  if (typeof rate !== 'number') return { error: '해당 통화의 환율이 없습니다.' };
+  return {
+    기준일: r.date,
+    환율: `1 ${from} = ${rate} ${to}`,
+    금액: amount,
+    결과: Number((amount * rate).toFixed(to === 'KRW' || to === 'JPY' ? 0 : 2)),
+    출처: '유럽중앙은행 기준 환율',
+  };
+}
+
+function randomPick(input) {
+  const ri = (lo, hi) => nodeCrypto.randomInt(lo, hi + 1);
+  switch (input.mode) {
+    case 'coin':
+      return { 결과: ri(0, 1) ? '앞면' : '뒷면' };
+    case 'dice': {
+      const sides = Math.trunc(Number(input.sides) || 6);
+      if (sides < 2 || sides > 1000) throw new Error('주사위 면 수는 2 ~ 1000이어야 합니다.');
+      return { 결과: ri(1, sides), 면: sides };
+    }
+    case 'number': {
+      const min = Math.trunc(Number(input.min));
+      const max = Math.trunc(Number(input.max));
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min > max || max - min > 1e9) throw new Error('범위가 올바르지 않습니다.');
+      return { 결과: ri(min, max), 범위: `${min} ~ ${max}` };
+    }
+    case 'pick': {
+      const opts = (Array.isArray(input.options) ? input.options : []).map((o) => String(o).slice(0, 100)).slice(0, 100);
+      if (opts.length < 1) throw new Error('고를 항목이 없습니다.');
+      const count = Math.min(opts.length, Math.max(1, Math.trunc(Number(input.count) || 1)));
+      const pool = opts.slice();
+      const out = [];
+      for (let i = 0; i < count; i++) out.push(pool.splice(ri(0, pool.length - 1), 1)[0]);
+      return { 결과: out };
+    }
+    default:
+      throw new Error('mode는 coin, dice, number, pick 중 하나여야 합니다.');
+  }
+}
+
+const CURRENCY = /^[A-Z]{3}$/;
 
 const NEED_RECENT =
   '보안을 위해 로그인한 지 얼마 안 됐을 때만 가능하다. 사용자에게 한 번 로그아웃했다가 다시 로그인한 뒤에 다시 말해 달라고 안내해라.';
@@ -229,6 +406,88 @@ async function run(name, input, ctx) {
     case 'complete_todo': {
       const done = await store.completeTodo(uid, String(input.id || ''));
       return done ? ok({ done: true }) : fail('해당 할 일을 찾지 못했습니다.');
+    }
+    case 'delete_todo': {
+      const removed = await store.deleteTodo(uid, String(input.id || ''));
+      return removed ? ok({ deleted: true }) : fail('해당 할 일을 찾지 못했습니다.');
+    }
+    case 'add_event': {
+      const title = redact(String(input.title || '').trim().slice(0, 100));
+      if (!title) return fail('일정 내용이 비었습니다.');
+      let at;
+      try {
+        at = parseWhen(input.start);
+      } catch (e) {
+        return fail(e.message);
+      }
+      const nowMs = (ctx.now ? ctx.now() : new Date()).getTime();
+      if (at < nowMs - DAY) return fail('이미 지난 시각입니다. 날짜를 다시 확인해라.');
+      if (at > nowMs + C.MAX_EVENT_DAYS * DAY) return fail('너무 먼 미래의 일정입니다.');
+      const rm = input.remind_minutes === undefined ? 10 : Math.trunc(Number(input.remind_minutes));
+      if (!Number.isFinite(rm) || rm < 0 || rm > 10080) return fail('알림은 0분에서 10080분(일주일) 전 사이여야 합니다.');
+      const id = await store.addEvent(uid, title, at, rm, tier);
+      if (id === 'full') return fail(`일정은 ${C.MAX_EVENTS}개까지 저장할 수 있습니다. 지난 일정을 지워 달라고 안내해라.`);
+      ctx.actions.push({ type: 'reminders' });
+      return ok({ added: true, id, 시각: fmtFull(at), 알림: rm ? `${rm}분 전` : '정각' });
+    }
+    case 'list_events': {
+      const days = Math.min(90, Math.max(1, Math.trunc(Number(input.days) || 7)));
+      const nowMs = (ctx.now ? ctx.now() : new Date()).getTime();
+      const list = await store.listEvents(uid, nowMs - 3600000, nowMs + days * DAY);
+      return ok({ 범위_일: days, events: list.map((e) => ({ id: e.id, 내용: e.title, 시각: fmtFull(e.at), 알림_분전: e.remindMin })) }, true);
+    }
+    case 'delete_event': {
+      const removed = await store.deleteEvent(uid, String(input.id || ''));
+      if (removed) ctx.actions.push({ type: 'reminders' });
+      return removed ? ok({ deleted: true }) : fail('해당 일정을 찾지 못했습니다.');
+    }
+    case 'get_air_quality': {
+      const city = String(input.city || '').trim();
+      if (!city) return fail('도시 이름이 비었습니다.');
+      return ok(await getAirQuality(fetchFn, city));
+    }
+    case 'exchange_rate': {
+      const from = String(input.from || '').trim().toUpperCase();
+      const to = String(input.to || '').trim().toUpperCase();
+      if (!CURRENCY.test(from) || !CURRENCY.test(to)) return fail('통화 코드는 USD, KRW 같은 영문 세 글자여야 합니다.');
+      const amount = input.amount === undefined ? 1 : Number(input.amount);
+      if (!Number.isFinite(amount) || amount < 0 || amount > 1e12) return fail('금액이 올바르지 않습니다.');
+      if (from === to) return ok({ 결과: amount });
+      return ok(await getExchange(fetchFn, from, to, amount));
+    }
+    case 'convert_units': {
+      try {
+        return ok({ 결과: convert(input.value, input.from, input.to), 단위: String(input.to) });
+      } catch (e) {
+        return fail(e.message);
+      }
+    }
+    case 'date_calc': {
+      try {
+        return ok(dateCalc(input, ctx.now ? ctx.now() : new Date()));
+      } catch (e) {
+        return fail(e.message);
+      }
+    }
+    case 'random': {
+      try {
+        return ok(randomPick(input));
+      } catch (e) {
+        return fail(e.message);
+      }
+    }
+    case 'list_memories': {
+      const limit = Math.min(30, Math.max(1, Math.trunc(Number(input.limit) || 10)));
+      const mems = await store.listMemories(uid, limit);
+      return ok(
+        { memories: mems.map((m) => ({ id: m.id, kind: 'memory', 시각: fmtKST(m.createdAt), 내용: m.text, 저장_이유: m.reason || undefined })) },
+        true
+      );
+    }
+    case 'export_data': {
+      if (!ctx.recentLogin) return fail(NEED_RECENT);
+      ctx.actions.push({ type: 'export' });
+      return ok({ started: true, note: '화면이 파일을 내려받는다. 파일에는 대화 내용이 그대로 들어 있으니 안전한 곳에 보관하라고 안내해라.' });
     }
     case 'set_pref': {
       const key = String(input.key || '');
@@ -294,7 +553,7 @@ async function run(name, input, ctx) {
       return ok({
         등급: tier === 'master' ? '마스터' : '기본',
         모델: C.MODELS[tier],
-        저장된_개수: { 대화: s.messages, 중요기억: s.memories, 할일: s.todos, 루틴: s.routines },
+        저장된_개수: { 대화: s.messages, 중요기억: s.memories, 할일: s.todos, 일정: s.events, 루틴: s.routines },
         오늘_사용: `${s.usageToday} / ${C.DAILY_LIMIT[tier]}`,
         보관: tier === 'master' ? '영구' : `${C.BASIC_RETENTION_DAYS}일 (다시 언급되면 갱신)`,
         보안: {

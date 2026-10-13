@@ -191,4 +191,26 @@ async function handleChat(deps, uid, rawText) {
   return { status: 200, body: { reply, master: tier === 'master', ...(actions.length ? { actions: actions.slice(0, 5) } : {}) } };
 }
 
-module.exports = { handleChat, getMe, toApiMessages, R };
+// 화면이 알림을 예약할 수 있도록 앞으로 하루 안의 일정만 돌려준다.
+async function getUpcoming(deps, uid) {
+  const nowMs = (deps.now ? deps.now() : new Date()).getTime();
+  // 알림은 최대 일주일 전에 울릴 수 있으므로 그만큼 앞의 일정까지 본다.
+  const list = await deps.store.listEvents(uid, nowMs - 3600000, nowMs + C.UPCOMING_HOURS * 3600000 + 7 * 86400000, 100);
+  const horizon = nowMs + C.UPCOMING_HOURS * 3600000;
+  return {
+    events: list
+      .map((e) => ({ id: e.id, title: e.title, at: e.at, remindAt: e.at - e.remindMin * 60000 }))
+      .filter((e) => e.remindAt <= horizon && e.at >= nowMs - 3600000),
+  };
+}
+
+// 내 데이터 내려받기. 로그인한 지 얼마 안 됐을 때만 허용한다 (잠깐 자리를 비운 기기에서 통째로 빼가는 것 방지).
+async function exportData(deps, uid) {
+  const now = deps.now ? deps.now() : new Date();
+  if (!isRecentLogin(deps.authTime, now.getTime(), C.RECENT_LOGIN_SECONDS)) return { status: 403, body: { error: 'reauth' } };
+  (deps.audit || (() => {}))('export');
+  const data = await deps.store.exportAll(uid);
+  return { status: 200, body: { app: 'AEGIS', exportedAt: now.toISOString(), ...data } };
+}
+
+module.exports = { handleChat, getMe, getUpcoming, exportData, toApiMessages, R };

@@ -29,6 +29,10 @@ module.exports = {
   MAX_TIMER_SECONDS: 86400,
   MAX_PREFS: 30,
   MAX_ROUTINES: 30,
+  MAX_EVENTS: 500, // 일정 최대 개수
+  MAX_EVENT_DAYS: 366 * 3, // 일정은 지금부터 3년 안쪽만
+  UPCOMING_HOURS: 24, // 화면이 알림 예약용으로 받아 가는 일정 범위
+  EXPORT_MAX_MESSAGES: 10000, // 내 데이터 내려받기에 담는 최대 대화 수
   RECENT_LOGIN_SECONDS: 600, // 삭제, 전체 로그아웃은 로그인한 지 10분 이내만 허용
 
   // 마스터 전용 웹 검색 (Anthropic 서버 도구). AEGIS_WEB_SEARCH=false 로 끌 수 있다.

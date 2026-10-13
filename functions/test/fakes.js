@@ -6,6 +6,7 @@ function makeFakeStore() {
     messages: [],
     memories: [],
     todos: [],
+    events: [],
     routines: [],
     prefs: {},
     touched: [],
@@ -35,6 +36,20 @@ function makeFakeStore() {
     async addTodo(_u, text, due) { const t = { id: id(), text, due, done: false }; s.todos.push(t); return t.id; },
     async listTodos() { return s.todos.filter((t) => !t.done); },
     async completeTodo(_u, i) { const t = s.todos.find((x) => x.id === i); if (!t) return false; t.done = true; return true; },
+    async deleteTodo(_u, i) { const k = s.todos.findIndex((x) => x.id === i); if (k < 0) return false; s.todos.splice(k, 1); return true; },
+    async addEvent(_u, title, at, remindMin, tier) {
+      if (s.events.length >= 500) return 'full';
+      const e = { id: id(), title, at, remindMin, tier };
+      s.events.push(e);
+      return e.id;
+    },
+    async listEvents(_u, from, to, limit = 50) {
+      return s.events.filter((e) => e.at >= from && e.at <= to).sort((a, b) => a.at - b.at).slice(0, limit);
+    },
+    async deleteEvent(_u, i) { const k = s.events.findIndex((x) => x.id === i); if (k < 0) return false; s.events.splice(k, 1); return true; },
+    async exportAll() {
+      return { account: { tier: s.tier }, messages: s.messages, memories: s.memories, todos: s.todos, events: s.events, prefs: s.prefs, routines: s.routines };
+    },
     async getPrefs() { return { ...s.prefs }; },
     async setPref(_u, key, value) {
       if (!value) { delete s.prefs[key]; return 'ok'; }
@@ -57,7 +72,7 @@ function makeFakeStore() {
       return true;
     },
     async stats() {
-      return { messages: s.messages.length, memories: s.memories.length, todos: s.todos.length, routines: s.routines.length, usageToday: s.usage };
+      return { messages: s.messages.length, memories: s.memories.length, todos: s.todos.length, events: s.events.length, routines: s.routines.length, usageToday: s.usage };
     },
     async deleteAll() { s.messages = []; s.memories = []; s.todos = []; s.routines = []; s.prefs = {}; s.deleted.push('all'); },
   };
@@ -77,6 +92,14 @@ function makeFakeFetch(scripts) {
     }
     if (String(url).includes('geocoding-api.open-meteo.com')) {
       return { ok: true, json: async () => ({ results: [{ name: '서울', country: '대한민국', latitude: 37.5, longitude: 127 }] }) };
+    }
+    if (String(url).includes('air-quality-api.open-meteo.com')) {
+      return { ok: true, json: async () => ({ current: { pm10: 45, pm2_5: 40 } }) };
+    }
+    if (String(url).includes('api.frankfurter.dev')) {
+      fn.fxUrls = (fn.fxUrls || []).concat(String(url));
+      if (String(url).includes('XXX')) return { ok: false, status: 404, json: async () => ({}) };
+      return { ok: true, json: async () => ({ amount: 1, base: 'USD', date: '2026-10-12', rates: { KRW: 1380.5, JPY: 150.25 } }) };
     }
     if (String(url).includes('api.open-meteo.com')) {
       return {

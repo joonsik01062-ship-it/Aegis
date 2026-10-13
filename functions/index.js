@@ -1,4 +1,4 @@
-// 이지스 서버 진입점. 화면은 /api/chat 과 /api/me 만 호출한다.
+// 이지스 서버 진입점. 화면은 /api/chat, /api/me, /api/upcoming, /api/export 만 호출한다.
 // AI 키와 암호화 키는 서버의 비밀 저장소(Secret Manager)에만 있고, 브라우저에는 절대 내려가지 않는다.
 // 이 서버에는 대화 내용을 평문으로 읽어 주는 관리자 기능, 디버그 출력, 내용 로그가 없다.
 const { onRequest } = require('firebase-functions/v2/https');
@@ -9,7 +9,7 @@ const C = require('./lib/config');
 const { makeStore } = require('./lib/store');
 const { makeKeyring } = require('./lib/keyring');
 const { parseAllowlist } = require('./lib/unlock');
-const { handleChat, getMe } = require('./lib/chat');
+const { handleChat, getMe, getUpcoming, exportData } = require('./lib/chat');
 const sec = require('./lib/security');
 
 admin.initializeApp();
@@ -114,6 +114,12 @@ exports.api = onRequest(
       };
 
       if (req.path === '/api/me' && req.method === 'GET') return res.json(await getMe(deps, uid));
+      if (req.path === '/api/upcoming' && req.method === 'GET') return res.json(await getUpcoming(deps, uid));
+      if (req.path === '/api/export' && req.method === 'GET') {
+        const out = await exportData(deps, uid);
+        if (out.status === 200) res.set('Content-Disposition', 'attachment; filename="aegis-export.json"');
+        return res.status(out.status).json(out.body);
+      }
       if (req.path === '/api/chat' && req.method === 'POST') {
         const out = await handleChat(deps, uid, req.body && req.body.text);
         return res.status(out.status).json(out.body);
