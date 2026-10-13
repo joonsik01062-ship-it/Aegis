@@ -1,0 +1,10 @@
+rules_version = '2';
+// 브라우저에서 DB에 직접 접근하는 것을 전부 막는다.
+// 모든 읽기/쓰기는 서버(Functions)가 로그인 확인 후에만 처리한다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

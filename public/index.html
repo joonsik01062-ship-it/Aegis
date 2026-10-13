@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#02060d">
+<title>이지스 · AEGIS</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{--c:#4fd8ff;--bright:#d6f6ff;--dim:rgba(79,216,255,.55);--line:rgba(79,216,255,.2)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#02060d;color:var(--bright);font-family:"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",Arial,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.fx{position:fixed;inset:0;pointer-events:none;z-index:2;background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(79,216,255,.02) 4px),radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.72) 100%)}
+.frame{position:fixed;z-index:3;pointer-events:none;width:26px;height:26px;border-color:rgba(79,216,255,.6)}
+.f1{top:calc(14px + env(safe-area-inset-top));left:14px;border-top:1px solid;border-left:1px solid}
+.f2{top:calc(14px + env(safe-area-inset-top));right:14px;border-top:1px solid;border-right:1px solid}
+.f3{bottom:calc(14px + env(safe-area-inset-bottom));left:14px;border-bottom:1px solid;border-left:1px solid}
+.f4{bottom:calc(14px + env(safe-area-inset-bottom));right:14px;border-bottom:1px solid;border-right:1px solid}
+.hud{position:fixed;z-index:5;pointer-events:none;text-transform:uppercase;text-shadow:0 0 12px rgba(79,216,255,.45)}
+.brand{top:calc(30px + env(safe-area-inset-top));left:30px;letter-spacing:.42em}
+.brand b{display:block;font-size:19px;font-weight:600;color:var(--bright);margin-bottom:7px}
+.brand span{font-size:8.5px;letter-spacing:.3em;color:var(--dim)}
+.clock{top:calc(30px + env(safe-area-inset-top));right:30px;text-align:right;letter-spacing:.2em}
+.clock b{display:block;font-size:17px;font-weight:400;color:var(--bright);font-variant-numeric:tabular-nums}
+.clock span{font-size:8.5px;color:var(--dim);letter-spacing:.2em}
+.status{left:50%;bottom:calc(54px + env(safe-area-inset-bottom));transform:translateX(-50%);text-align:center;letter-spacing:.38em}
+.status .row{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--bright)}
+.status small{display:block;margin-top:8px;font-size:11px;letter-spacing:.2em;color:var(--dim);text-transform:none}
+#dot{width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c);animation:blink 2.2s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+.hint{left:50%;bottom:calc(26px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:8px;letter-spacing:.22em;color:rgba(79,216,255,.38);white-space:nowrap;text-transform:none}
+.greet{left:50%;top:calc(10% + env(safe-area-inset-top));transform:translateX(-50%);font-size:14px;letter-spacing:.14em;text-transform:none;color:var(--bright);white-space:nowrap;min-height:20px}
+.greet:after{content:"";display:inline-block;width:7px;height:14px;margin-left:4px;vertical-align:-2px;background:var(--c);box-shadow:0 0 8px var(--c);animation:blink 1s steps(2) infinite}
+@media(max-width:600px){
+.greet{font-size:12px;top:calc(13% + env(safe-area-inset-top))}
+.brand{left:22px;top:calc(26px + env(safe-area-inset-top))}.brand b{font-size:16px}
+.clock{right:22px;top:calc(26px + env(safe-area-inset-top))}.clock b{font-size:14px}
+.status .row{font-size:12px}.status small{font-size:10px}
+}
+.caption{left:50%;bottom:calc(112px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(86vw,560px);text-align:center;font-size:15px;line-height:1.55;letter-spacing:.04em;text-transform:none;color:var(--bright);opacity:0;transition:opacity .35s;max-height:6.4em;overflow:hidden}
+.caption.on{opacity:.92}
+#login{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:14px;padding:0 24px calc(18% + env(safe-area-inset-bottom));background:rgba(2,6,13,.55);backdrop-filter:blur(2px)}
+#login[hidden]{display:none}
+#loginBtn{pointer-events:auto;background:rgba(79,216,255,.1);color:var(--bright);border:1px solid rgba(79,216,255,.6);padding:14px 30px;font-size:14px;letter-spacing:.2em;cursor:pointer;border-radius:2px;text-shadow:0 0 10px rgba(79,216,255,.5);box-shadow:0 0 18px rgba(79,216,255,.18) inset}
+#loginBtn:active{background:rgba(79,216,255,.25)}
+#loginBtn:disabled{opacity:.4}
+#loginMsg{max-width:420px;text-align:center;font-size:12px;line-height:1.6;color:var(--dim)}
+</style>
+</head>
+<body>
+<canvas id="hud" aria-label="AEGIS 인터페이스"></canvas>
+<div class="fx"></div>
+<div class="frame f1"></div><div class="frame f2"></div><div class="frame f3"></div><div class="frame f4"></div>
+<div class="hud brand"><b>이지스 · AEGIS</b><span id="sub">Personal AI Assistant</span></div>
+<div class="hud clock"><b id="time">--:--:--</b><span id="date">---</span></div>
+<div class="hud status"><div class="row"><i id="dot"></i><span id="stLabel">STANDBY</span></div><small id="stKo">대기 중</small></div>
+<div class="hud greet" id="greet"></div>
+<div class="hud caption" id="caption"></div>
+<div class="hud hint" id="hint"></div>
+<div id="login"><button id="loginBtn" type="button">Google로 로그인</button><div id="loginMsg"></div></div>
+
+<script>
+(()=>{
+'use strict';
+const cv=document.getElementById('hud'),ctx=cv.getContext('2d');
+const TAU=Math.PI*2;
+
+// 상태별 움직임 설정. 실제 앱에서는 window.Aegis.setState()로 바꾼다.
+const STATES={
+  idle:     {label:'STANDBY',    ko:'대기 중',    speed:1,   amp:.10, glow:.75},
+  listening:{label:'LISTENING',  ko:'듣는 중',    speed:1.5, amp:.50, glow:1.0},
+  thinking: {label:'PROCESSING', ko:'생각하는 중', speed:3.4, amp:.22, glow:1.15},
+  speaking: {label:'RESPONDING', ko:'말하는 중',  speed:1.9, amp:.78, glow:1.3}
+};
+const ORDER=['idle','listening','thinking','speaking'];
+
+let state='idle',W=0,H=0,dpr=1,cx=0,cy=0,R=120,bg=null;
+const cur={speed:1,amp:.1,glow:.75};
+let ext=null,phase=0,t=0,last=performance.now();
+let bootT=0;const BOOT=2.6;           // 부팅 연출 시간(초)
+const easeOut=x=>1-Math.pow(1-x,3);
+let GREETING='안녕하세요, 주인님. 이지스 가동되었습니다.';
+let greetT0=BOOT*.7;                  // 인사말 타이핑 시작 시각
+let master=false,masterT=0;           // 마스터 모드(전환 연출용 0~1)
+
+const C=a=>`rgba(79,216,255,${a})`;
+const B=a=>`rgba(214,246,255,${a})`;
+const parts=Array.from({length:55},()=>({x:Math.random(),y:Math.random(),v:Math.random()*.012+.004,r:Math.random()*1.1+.4,a:Math.random()*.35+.1}));
+
+function buildBg(){
+  bg=document.createElement('canvas');
+  bg.width=Math.round(W*dpr);bg.height=Math.round(H*dpr);
+  const b=bg.getContext('2d');b.scale(dpr,dpr);
+  b.fillStyle='#02060d';b.fillRect(0,0,W,H);
+  const g=b.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*.62);
+  g.addColorStop(0,'rgba(18,90,150,.40)');g.addColorStop(.45,'rgba(8,42,76,.22)');g.addColorStop(1,'rgba(0,0,0,0)');
+  b.fillStyle=g;b.fillRect(0,0,W,H);
+  b.fillStyle='rgba(79,216,255,.10)';
+  for(let x=cx%38;x<W;x+=38)for(let y=cy%38;y<H;y+=38)b.fillRect(x-.5,y-.5,1,1);
+  b.strokeStyle='rgba(79,216,255,.07)';b.lineWidth=1;
+  b.beginPath();b.moveTo(0,cy);b.lineTo(cx-R*1.9,cy);b.moveTo(cx+R*1.9,cy);b.lineTo(W,cy);
+  b.moveTo(cx,0);b.lineTo(cx,cy-R*1.9);b.moveTo(cx,cy+R*1.9);b.lineTo(cx,H);b.stroke();
+}
+
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  W=innerWidth;H=innerHeight;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  cx=W/2;cy=H*(W<H?.46:.5);
+  R=Math.min(W*.268,H*(W<H?.2:.22),260);
+  buildBg();
+}
+
+function arc(r,s,l,lw,col){ctx.beginPath();ctx.arc(0,0,r,s,s+l);ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.stroke();}
+function circle(r,lw,col){arc(r,0,TAU,lw,col);}
+function ticks(r,n,len,every,rot,col,lw){
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const a=i/n*TAU+rot,l=i%every===0?len*2.2:len,c=Math.cos(a),s=Math.sin(a);
+    ctx.moveTo(c*r,s*r);ctx.lineTo(c*(r+l),s*(r+l));
+  }
+  ctx.lineWidth=lw||1;ctx.strokeStyle=col;ctx.stroke();
+}
+function glow(px,col){ctx.shadowColor=col;ctx.shadowBlur=px;}
+function noGlow(){ctx.shadowBlur=0;}
+
+// 3D 구 데이터: 구 표면에 점을 고르게 뿌리고, 가까운 점끼리 선으로 잇는다
+const SN=360,sphPts=[],sphPr=new Array(SN),sphLinks=[];
+let yaw=0,pitch=.38,dragYaw=0,dragPitch=0;
+(function buildSphere(){
+  const ga=Math.PI*(3-Math.sqrt(5));
+  for(let i=0;i<SN;i++){
+    const y=1-2*(i+.5)/SN,r=Math.sqrt(1-y*y),a=i*ga;
+    sphPts.push({x:Math.cos(a)*r,y,z:Math.sin(a)*r,ph:Math.random()*TAU});
+  }
+  const seen=new Set();
+  for(let i=0;i<SN;i++){
+    const d=[];
+    for(let j=0;j<SN;j++){
+      if(i===j)continue;
+      const dx=sphPts[i].x-sphPts[j].x,dy=sphPts[i].y-sphPts[j].y,dz=sphPts[i].z-sphPts[j].z;
+      d.push([dx*dx+dy*dy+dz*dz,j]);
+    }
+    d.sort((a,b)=>a[0]-b[0]);
+    for(let k=0;k<3;k++){
+      const j=d[k][1],lo=Math.min(i,j),hi=Math.max(i,j),key=lo*SN+hi;
+      if(!seen.has(key)){seen.add(key);sphLinks.push([lo,hi]);}
+    }
+  }
+})();
+function proj(x,y,z,rs){
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  const x1=x*cy-z*sy,z1=x*sy+z*cy;
+  const y1=y*cp-z1*sp,z2=y*sp+z1*cp;
+  const f=3/(3+z2);
+  return{x:x1*rs*f,y:y1*rs*f,z:z2,f};
+}
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.globalCompositeOperation='source-over';
+  ctx.drawImage(bg,0,0,W,H);
+
+  // 배경 입자
+  ctx.fillStyle=C(.3);
+  for(const p of parts){
+    p.y-=p.v*.016*cur.speed;if(p.y<0){p.y=1;p.x=Math.random();}
+    ctx.globalAlpha=p.a;ctx.beginPath();ctx.arc(p.x*W,p.y*H,p.r,0,TAU);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // 좌우 눈금자 (데스크톱)
+  if(W>700){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const off=(phase*9)%18;
+    for(const side of [-1,1]){
+      const x=side<0?34:W-34;
+      for(let i=-14;i<=14;i++){
+        const y=cy+i*18+off,d=Math.abs(y-cy)/(18*14),a=(1-d)*.5;
+        if(a<=0)continue;
+        const len=i%5===0?14:7;
+        ctx.strokeStyle=C(a);ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(side<0?len:-len),y);ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(cx,cy);
+  // 부팅: 작게 회전하며 시작해서 펼쳐지고 밝아진다
+  const bp=easeOut(Math.min(1,bootT/BOOT));
+  ctx.scale(.55+.45*bp,.55+.45*bp);
+  ctx.rotate((1-bp)*-1.6);
+  ctx.globalAlpha=bp;
+  ctx.globalCompositeOperation='lighter';
+  const g=cur.glow*(1+(1-bp)*.8)*(1+masterT*.2),lw=Math.max(1,R/150);
+
+  // 레이더 스윕
+  if(ctx.createConicGradient){
+    const cg=ctx.createConicGradient(phase*.5,0,0);
+    cg.addColorStop(0,'rgba(79,216,255,0)');
+    cg.addColorStop(.12,`rgba(79,216,255,${.16*g})`);
+    cg.addColorStop(.121,'rgba(79,216,255,0)');
+    cg.addColorStop(1,'rgba(79,216,255,0)');
+    ctx.fillStyle=cg;ctx.beginPath();ctx.arc(0,0,R*1.12,0,TAU);ctx.fill();
+  }
+
+  // 1. 바깥 눈금 링
+  ticks(R*1.64,180,R*.025,10,phase*.02,C(.38),lw);
+  circle(R*1.62,lw,C(.22));
+
+  // 마스터 모드: 바깥에 금빛 링이 추가로 켜진다
+  if(masterT>0){
+    const gold=a=>`rgba(255,208,120,${a*masterT})`;
+    glow(12*masterT,'#ffd078');
+    const am=-phase*.3;
+    arc(R*1.77,am,1.9,lw*2.2,gold(.9));
+    arc(R*1.77,am+3.3,1.2,lw*2.2,gold(.7));
+    noGlow();
+    ticks(R*1.8,72,R*.02,6,-phase*.04,gold(.5),lw);
+  }
+
+  // 2. 회전 호 (밝은 가는 링)
+  glow(10*g,'#4fd8ff');
+  const a1=phase*.18;
+  arc(R*1.5,a1,1.25,lw*2,C(.9*Math.min(1,g)));
+  arc(R*1.5,a1+2.6,.7,lw*2,C(.75));
+  arc(R*1.5,a1+4.4,.45,lw*2,C(.6));
+  noGlow();
+
+  // 3. 두꺼운 반투명 호
+  const a2=-phase*.12;
+  arc(R*1.37,a2,1.6,R*.05,C(.3));
+  arc(R*1.37,a2+2.1,1.1,R*.05,C(.22));
+  arc(R*1.37,a2+3.9,.9,R*.05,C(.28));
+  arc(R*1.37,a2+5.3,.5,R*.05,C(.18));
+
+  // 4. 점선 링
+  ctx.setLineDash([2,10]);ctx.lineDashOffset=-phase*14;
+  circle(R*1.23,lw,C(.5));
+  ctx.setLineDash([]);
+
+  // 5. 안쪽 얇은 링 + 사방 표식
+  circle(R*1.09,lw,C(.28));
+  for(let i=0;i<4;i++){
+    const a=i*TAU/4+Math.PI/4;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*R*1.04,Math.sin(a)*R*1.04);ctx.lineTo(Math.cos(a)*R*1.15,Math.sin(a)*R*1.15);
+    ctx.lineWidth=lw*1.6;ctx.strokeStyle=C(.7);ctx.stroke();
+  }
+
+  // 6. 원형 파형 바 (음성/상태에 반응)
+  const N=120,r0=R*.84;
+  glow(6*g,'#4fd8ff');
+  for(let i=0;i<N;i++){
+    const m=Math.min(i,N-i);
+    const a=i/N*TAU-Math.PI/2;
+    let n=Math.abs(Math.sin(m*.42+t*3.1)*Math.cos(m*.17-t*2.2));
+    let lvl;
+    if(ext!==null)lvl=ext*(.55+.45*n);
+    else{
+      lvl=cur.amp*(.35+.65*n);
+      if(state==='speaking')lvl*=.6+.4*Math.sin(t*9+m*.3);
+      if(state==='thinking')lvl*=.5+.5*Math.sin(t*5-m*.25);
+    }
+    lvl=Math.max(0,Math.min(1,lvl));
+    const len=R*(.02+.22*lvl),c=Math.cos(a),s=Math.sin(a);
+    ctx.beginPath();ctx.moveTo(c*r0,s*r0);ctx.lineTo(c*(r0+len),s*(r0+len));
+    ctx.lineWidth=Math.max(1.3,R*.011);
+    ctx.strokeStyle=i%6===0?B(.9):C(.55+.4*lvl);
+    ctx.stroke();
+  }
+  noGlow();
+  circle(R*.8,lw,C(.5));
+
+  // 7. 12분할 회전 세그먼트
+  for(let i=0;i<12;i++){
+    const s=i*TAU/12+phase*.25;
+    const pulse=.5+.5*Math.sin(phase*2.2-i*.75);
+    arc(R*.67,s,TAU/12*.7,R*.035,C(.18+.6*pulse*Math.min(1,g)));
+  }
+
+  // 8. 3D 홀로그램 구 (드래그로 회전, 음성에 따라 출렁임)
+  const lvl3=ext!==null?ext:cur.amp;
+  const pulse=1+.03*Math.sin(t*2)+(ext!==null?ext*.06:cur.amp*.04*Math.sin(t*7));
+  const rs=R*.56*pulse;
+  yaw=phase*.22+dragYaw;pitch=.38+dragPitch;
+
+  // 안쪽 은은한 빛
+  const halo=ctx.createRadialGradient(0,0,0,0,0,rs*1.25);
+  halo.addColorStop(0,`rgba(190,242,255,${.30*Math.min(1,g)})`);
+  halo.addColorStop(.5,`rgba(79,216,255,${.10*g})`);
+  halo.addColorStop(1,'rgba(79,216,255,0)');
+  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(0,0,rs*1.25,0,TAU);ctx.fill();
+
+  // 점 위치 계산 (음성 레벨만큼 표면이 일렁임)
+  for(let i=0;i<SN;i++){
+    const p=sphPts[i],d=1+lvl3*.09*Math.sin(t*5+p.ph*3);
+    sphPr[i]=proj(p.x*d,p.y*d,p.z*d,rs);
+  }
+  // 격자 선: 앞쪽은 밝게, 뒤쪽은 흐리게
+  ctx.lineWidth=Math.max(.7,lw*.8);
+  for(let k=0;k<sphLinks.length;k++){
+    const A=sphPr[sphLinks[k][0]],Bp=sphPr[sphLinks[k][1]];
+    const dz=(A.z+Bp.z)/2;
+    ctx.strokeStyle=C(.05+.42*Math.max(0,(1-dz)/2)*Math.min(1,g));
+    ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(Bp.x,Bp.y);ctx.stroke();
+  }
+  // 점
+  for(let i=0;i<SN;i++){
+    const q=sphPr[i],a=.12+.8*Math.max(0,(1-q.z)/2);
+    ctx.fillStyle=i%11===0?B(a):C(a);
+    ctx.beginPath();ctx.arc(q.x,q.y,Math.max(.8,R*.008)*q.f*(i%11===0?1.7:1),0,TAU);ctx.fill();
+  }
+  // 기울어진 궤도 링 3개 (구 둘레를 서로 다른 각도로 회전)
+  for(let k=0;k<3;k++){
+    const tilt=.5+k*.95,spin=phase*(.5+k*.22)*(k%2?-1:1),cs=Math.cos(spin),ss=Math.sin(spin),ct=Math.cos(tilt),st=Math.sin(tilt);
+    ctx.beginPath();
+    for(let j=0;j<=72;j++){
+      const th=j/72*TAU;let x=Math.cos(th),y=0,z=Math.sin(th);
+      const x1=x*cs-z*ss,z1=x*ss+z*cs;
+      const y2=y*ct-z1*st,z2=y*st+z1*ct;
+      const q=proj(x1*1.16,y2*1.16,z2*1.16,rs);
+      if(j===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);
+    }
+    ctx.lineWidth=lw*1.2;ctx.strokeStyle=k===0?B(.55):C(.45);ctx.stroke();
+  }
+  // 중심 빛점
+  const eye=ctx.createRadialGradient(0,0,0,0,0,rs*.16);
+  eye.addColorStop(0,`rgba(255,255,255,${Math.min(1,.9*g)})`);
+  eye.addColorStop(1,'rgba(79,216,255,0)');
+  ctx.fillStyle=eye;ctx.beginPath();ctx.arc(0,0,rs*.16,0,TAU);ctx.fill();
+
+  // 10. 궤도 위성
+  glow(10,'#9fe8ff');
+  const sat=[[R*1.5,.36,0],[R*1.37,-.26,2.1],[R*1.23,.5,4.2]];
+  for(const [r,sp,off] of sat){
+    const a=phase*sp+off;
+    ctx.fillStyle=B(.95);ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,Math.max(2,R*.015),0,TAU);ctx.fill();
+  }
+  noGlow();
+
+  ctx.restore();
+}
+
+function updateLabel(){
+  const S=STATES[state];
+  document.getElementById('stLabel').textContent=S.label;
+  document.getElementById('stKo').textContent=S.ko;
+}
+
+// 인사말 타이핑 (부팅이 끝나갈 때 시작)
+function typeGreeting(){
+  const el=document.getElementById('greet');
+  const n=Math.max(0,Math.min(GREETING.length,Math.floor((bootT-greetT0)*18)));
+  if(el._n!==n){el._n=n;el.textContent=GREETING.slice(0,n);}
+}
+
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  const S=STATES[state],k=1-Math.pow(.02,dt);
+  cur.speed+=(S.speed-cur.speed)*k;
+  cur.amp+=(S.amp-cur.amp)*k;
+  cur.glow+=(S.glow-cur.glow)*k;
+  // 부팅 중에는 링이 빠르게 돌다가 서서히 정상 속도로 안착
+  const boost=bootT<BOOT?1+(1-bootT/BOOT)*5:1;
+  phase+=dt*cur.speed*boost;t+=dt;bootT+=dt;
+  masterT=master?Math.min(1,masterT+dt*.7):Math.max(0,masterT-dt*.7);
+  typeGreeting();
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function tickClock(){
+  const d=new Date();
+  document.getElementById('time').textContent=d.toLocaleTimeString('ko-KR',{hour12:false});
+  document.getElementById('date').textContent=d.toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+}
+
+// 드래그: 3D 구 회전 / 살짝 탭: 상태 순환 (데모용, 실제 앱에서는 탭 부분을 제거한다)
+let drag=null;
+cv.addEventListener('pointerdown',e=>{
+  drag={x:e.clientX,y:e.clientY,moved:0};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  drag.moved+=Math.abs(dx)+Math.abs(dy);
+  dragYaw+=dx*.01;
+  dragPitch=Math.max(-1,Math.min(1,dragPitch+dy*.006));
+  drag.x=e.clientX;drag.y=e.clientY;
+});
+function endDrag(e){
+  if(!drag)return;
+  if(drag.moved<8){
+    if(window.Aegis.onTap)window.Aegis.onTap();
+    else{state=ORDER[(ORDER.indexOf(state)+1)%ORDER.length];updateLabel();}
+  }
+  drag=null;
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',()=>{drag=null;});
+
+// 앱 연동용 공개 함수
+window.Aegis={
+  setState(s){if(STATES[s]){state=s;updateLabel();}},
+  getState(){return state;},
+  setLevel(v){ext=(v==null)?null:Math.max(0,Math.min(1,v));},
+  setMaster(on){
+    master=!!on;
+    document.getElementById('sub').textContent=master?'Master Mode':'Personal AI Assistant';
+    if(master){GREETING='어서 오십시오, 주인님. 모든 기능이 활성화되었습니다.';greetT0=bootT;}
+  },
+  isMaster(){return master;}
+};
+
+addEventListener('resize',resize);
+resize();updateLabel();tickClock();setInterval(tickClock,1000);
+requestAnimationFrame(frame);
+})();
+</script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
+import {
+  getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, GoogleAuthProvider,
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+// ▼▼▼ Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 복사해 채운다. (공개되어도 안전한 값들이다) ▼▼▼
+const firebaseConfig = {
+  apiKey: 'AIzaSyBpAb1va-8fHr5fLgMPzuQy6I3jt7YOrno',
+  authDomain: 'aegis-9d989.firebaseapp.com',
+  projectId: 'aegis-9d989',
+  appId: '1:1047436695457:web:9b76f00bca023173e65de0',
+};
+// App Check(앱 검증) 사이트 키: README의 App Check 설정을 끝낸 뒤에 채운다. 비워 두면 사용하지 않는다.
+const APP_CHECK_SITE_KEY = '';
+// ▲▲▲
+
+const A = window.Aegis;
+const $ = (id) => document.getElementById(id);
+const capEl = $('caption');
+const loginEl = $('login');
+const loginBtn = $('loginBtn');
+const loginMsg = $('loginMsg');
+const hintEl = $('hint');
+
+const configured = !String(firebaseConfig.apiKey).startsWith('YOUR_');
+
+// ---------- 자막 ----------
+let capTimer = null;
+function caption(text, hold) {
+  clearTimeout(capTimer);
+  capEl.textContent = text || '';
+  capEl.classList.toggle('on', !!text);
+  if (text && hold) capTimer = setTimeout(() => capEl.classList.remove('on'), hold);
+}
+
+// ---------- 목소리 레벨(파형) 연출 ----------
+let levelTimer = null;
+function startLevel(lo, hi) {
+  stopLevel();
+  levelTimer = setInterval(() => A.setLevel(lo + Math.random() * (hi - lo)), 90);
+}
+function stopLevel() {
+  if (levelTimer) clearInterval(levelTimer);
+  levelTimer = null;
+  A.setLevel(null);
+}
+
+// ---------- 상태 ----------
+let user = null;
+let mode = 'idle'; // idle | listening | thinking | speaking
+let rec = null;
+let speakId = 0;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function toIdle() {
+  stopLevel();
+  mode = 'idle';
+  A.setState('idle');
+  if (pendingSpeech.length) speak(pendingSpeech.shift());
+}
+
+// ---------- 말하기(TTS) ----------
+// v0.1은 브라우저 내장 음성을 쓴다. 더 자연스러운 음성 서비스로 바꿀 때는 이 함수만 교체하면 된다.
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter((v) => /^ko/i.test(v.lang));
+  return vs.find((v) => /male|남성|injoon|minsu|hyunsu/i.test(v.name)) || vs[0] || null;
+}
+
+function speak(text) {
+  caption(text);
+  if (!('speechSynthesis' in window)) {
+    mode = 'speaking';
+    A.setState('speaking');
+    startLevel(0.3, 0.8);
+    setTimeout(() => { toIdle(); caption(text, 4000); }, Math.min(9000, 1500 + text.length * 90));
+    return;
+  }
+  const myId = ++speakId;
+  speechSynthesis.cancel();
+  const parts = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
+  mode = 'speaking';
+  A.setState('speaking');
+  startLevel(0.3, 0.85);
+  let i = 0;
+  const next = () => {
+    if (myId !== speakId) return;
+    if (i >= parts.length) {
+      toIdle();
+      caption(text, 4000);
+      return;
+    }
+    const p = parts[i++].trim();
+    if (!p) return next();
+    const u = new SpeechSynthesisUtterance(p);
+    u.lang = 'ko-KR';
+    const v = pickVoice();
+    if (v) u.voice = v;
+    u.rate = 1.0;
+    u.pitch = 0.85;
+    u.onend = next;
+    u.onerror = next;
+    speechSynthesis.speak(u);
+  };
+  next();
+}
+
+// ---------- 서버 대화 ----------
+let appCheck = null;
+async function authedFetch(path, opts = {}) {
+  const token = await user.getIdToken();
+  const headers = { ...(opts.headers || {}), Authorization: 'Bearer ' + token };
+  if (appCheck) {
+    try { headers['X-Firebase-AppCheck'] = (await getAppCheckToken(appCheck, false)).token; } catch (_) { /* 서버가 거부하면 안내 */ }
+  }
+  return fetch(path, { ...opts, headers });
+}
+
+// ---------- 서버가 시킨 화면 동작 (타이머, 로그아웃) ----------
+const pendingSpeech = [];
+function runActions(actions) {
+  if (!Array.isArray(actions)) return;
+  for (const a of actions.slice(0, 5)) {
+    if (a && a.type === 'timer' && Number.isFinite(a.seconds)) {
+      const label = String(a.label || '').slice(0, 40);
+      setTimeout(() => {
+        const msg = (label ? label + ' ' : '') + '타이머가 끝났습니다, 주인님.';
+        if (mode === 'idle') speak(msg); else pendingSpeech.push(msg);
+      }, Math.min(a.seconds, 86400) * 1000);
+    } else if (a && a.type === 'signout') {
+      signOut(getAuth());
+    }
+  }
+}
+
+async function send(text) {
+  mode = 'thinking';
+  A.setState('thinking');
+  caption('');
+  let data;
+  try {
+    const res = await authedFetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      await signOut(getAuth());
+      return;
+    }
+    if (!data.reply) data = { reply: '연결에 문제가 있습니다, 주인님. 잠시 후 다시 말씀해 주세요.' };
+  } catch (_) {
+    data = { reply: '네트워크 연결을 확인해 주세요, 주인님.' };
+  }
+  if (typeof data.master === 'boolean') A.setMaster(data.master);
+  speak(data.reply);
+  runActions(data.actions);
+}
+
+// ---------- 듣기(음성 인식) ----------
+function listen() {
+  if (!SR) {
+    caption('이 브라우저는 음성 입력을 지원하지 않습니다. 안드로이드는 Chrome, 아이폰은 Safari를 써 주세요.', 8000);
+    return;
+  }
+  // 모바일 브라우저는 사용자가 탭한 순간에만 소리 재생을 허용한다. 지금 한 번 열어 둔다.
+  try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (_) {}
+
+  rec = new SR();
+  rec.lang = 'ko-KR';
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
+  let finalText = '';
+  let failed = false;
+
+  rec.onstart = () => {
+    mode = 'listening';
+    A.setState('listening');
+    caption('듣고 있습니다…');
+    startLevel(0.25, 0.6);
+  };
+  rec.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) finalText += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    caption(finalText + interim);
+  };
+  rec.onerror = (e) => {
+    failed = true;
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      caption('마이크 권한이 필요합니다. 브라우저 설정에서 허용해 주세요.', 8000);
+    } else if (e.error === 'no-speech') {
+      caption('말씀이 들리지 않았습니다.', 3000);
+    } else if (e.error !== 'aborted') {
+      caption('음성 인식에 문제가 있습니다. 다시 탭해 주세요.', 4000);
+    }
+  };
+  rec.onend = () => {
+    stopLevel();
+    const t = finalText.trim();
+    if (t) send(t);
+    else {
+      mode = 'idle';
+      A.setState('idle');
+      if (!failed) caption('');
+    }
+  };
+  try { rec.start(); } catch (_) { toIdle(); }
+}
+
+// 화면 아무 곳이나 탭: 말하는 중이면 끊고 바로 듣기, 듣는 중이면 마치기
+A.onTap = () => {
+  if (!user) return;
+  if (mode === 'speaking') {
+    speakId++;
+    try { speechSynthesis.cancel(); } catch (_) {}
+    stopLevel();
+    listen();
+    return;
+  }
+  if (mode === 'listening') {
+    try { rec.stop(); } catch (_) {}
+    return;
+  }
+  if (mode === 'thinking') return;
+  listen();
+};
+
+// ---------- 로그인 ----------
+if (!configured) {
+  loginMsg.textContent = 'public/index.html 위쪽의 firebaseConfig를 먼저 채워 주세요. (README 참고)';
+  loginBtn.disabled = true;
+} else {
+  const app = initializeApp(firebaseConfig);
+  if (APP_CHECK_SITE_KEY) {
+    appCheck = initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
+  }
+  const auth = getAuth(app);
+
+  loginBtn.onclick = async () => {
+    loginMsg.textContent = '';
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+        await signInWithRedirect(auth, provider);
+      } else if (e.code !== 'auth/popup-closed-by-user') {
+        loginMsg.textContent = '로그인에 실패했습니다. 다시 시도해 주세요.';
+      }
+    }
+  };
+
+  onAuthStateChanged(auth, async (u) => {
+    user = u;
+    loginEl.hidden = !!u;
+    hintEl.textContent = u ? '화면을 탭하고 말씀하세요' : '';
+    if (!u) {
+      A.setMaster(false);
+      return;
+    }
+    try {
+      const res = await authedFetch('/api/me');
+      if (res.ok) A.setMaster((await res.json()).master === true);
+    } catch (_) { /* 오프라인이면 무시 */ }
+  });
+}
+
+</script>
+</body>
+</html>
